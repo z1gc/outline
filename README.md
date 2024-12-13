@@ -24,6 +24,21 @@ Please see the [documentation](https://docs.getoutline.com/s/hosting/) for runni
 
 If you have questions or improvements for the docs please create a thread in [GitHub discussions](https://github.com/outline/outline/discussions).
 
+# Hack
+
+* URI "/auth/email" will make you login directly, you can set up basic auth to
+  protect your login.
+
+* Clearbit avatar is removed.
+
+* Online version check is removed.
+
+* Add env `SHARE_FOOTER_TEXT` and `SHARE_FOOTER_HREF`, you can add one footer
+  when you share your post. Only one footer is supported for now :/
+
+* Add a request header `X-Outline-ShareId`, it reuses the `ROOT_SHARE_ID` of the
+  outline, now you can reverse proxy a shared page under subdomain or else.
+
 # Development
 
 There is a short guide for [setting up a development environment](https://docs.getoutline.com/s/hosting/doc/local-development-5hEhFRXow7) if you wish to contribute changes, fixes, and improvements to Outline.

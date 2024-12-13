@@ -82,6 +82,12 @@ export const renderApp = async (
     });
   }
 
+  // TODO: Better ways?
+  const appShareId = ctx.headers["x-outline-shareid"];
+  if (appShareId) {
+    options.rootShareId = appShareId.toString();
+  }
+
   const { shareId } = ctx.params;
   const page = await readIndexFile();
   const environment = `

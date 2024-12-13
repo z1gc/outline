@@ -28,13 +28,6 @@ export default class AuthenticationHelper {
     return AuthenticationHelper.providers
       .sort((hook) => (hook.value.id === "email" ? 1 : -1))
       .filter((hook) => {
-        // Email sign-in is an exception as it does not have an authentication
-        // provider using passport, instead it exists as a boolean option.
-        if (hook.value.id === "email") {
-          return team?.emailSigninEnabled;
-        }
-
-        // If no team return all possible authentication providers except email.
         if (!team) {
           return true;
         }

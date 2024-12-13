@@ -614,6 +614,21 @@ export class Environment {
   public APP_NAME = "Outline";
 
   /**
+   * The footer, will be shown in shared post (if you're no logged in).
+   */
+  @Public
+  @IsOptional()
+  public SHARE_FOOTER_TEXT = this.toOptionalString(
+    environment.SHARE_FOOTER_TEXT
+  );
+
+  @Public
+  @IsOptional()
+  public SHARE_FOOTER_HREF = this.toOptionalString(
+    environment.SHARE_FOOTER_HREF
+  );
+
+  /**
    * Returns true if the current installation is the cloud hosted version at
    * getoutline.com
    */
