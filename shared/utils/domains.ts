@@ -18,7 +18,7 @@ export function slugifyDomain(domain: string) {
   return domain.split(".").slice(0, -1).join("-");
 }
 
-// strips protocol and whitespace from input
+// strips protocol, port and whitespace from input
 // then strips the path and query string
 function normalizeUrl(url: string) {
   return trim(url.replace(/(https?:)?\/\//, "")).split(/[/:?]/)[0];

@@ -27,7 +27,6 @@ import {
 } from "@shared/types";
 import { ProsemirrorHelper } from "@shared/utils/ProsemirrorHelper";
 import { TextHelper } from "@shared/utils/TextHelper";
-import { parseDomain } from "@shared/utils/domains";
 import { determineIconType } from "@shared/utils/icon";
 import { isModKey } from "@shared/utils/keyboard";
 import RootStore from "~/stores/RootStore";
@@ -601,11 +600,9 @@ class DocumentScene extends React.Component<Props> {
                 )}
               </React.Suspense>
             </Main>
-            {isShare &&
-              !parseDomain(window.location.origin).custom &&
-              !auth.user && (
-                <Branding href="//www.getoutline.com?ref=sharelink" />
-              )}
+            {isShare && !auth.user && (
+              <Branding href="//www.getoutline.com?ref=sharelink" />
+            )}
           </Container>
           {!isShare && (
             <Footer>

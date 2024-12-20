@@ -11,37 +11,47 @@ type Props = {
 
 function Branding({ href = env.URL }: Props) {
   return (
-    <Link href={href}>
-      <OutlineIcon size={20} />
-      &nbsp;{env.APP_NAME}
-    </Link>
+    <Div>
+      <Link href={href}>
+        <OutlineIcon size={20} />
+        &nbsp;{env.APP_NAME}
+      </Link>
+      {env.SHARE_FOOTER_TEXT && env.SHARE_FOOTER_HREF && (
+        <Link style={{ fontWeight: 400 }} href={env.SHARE_FOOTER_HREF}>
+          {env.SHARE_FOOTER_TEXT}
+        </Link>
+      )}
+    </Div>
   );
 }
 
-const Link = styled.a`
+const Div = styled.div`
+  display: flex;
   justify-content: center;
-  padding-bottom: 16px;
+  align-items: center;
 
+  ${breakpoint("tablet")`
+    z-index: ${depths.sidebar + 1};
+    position: fixed;
+    bottom: 0;
+    right: 0;
+  `};
+`;
+
+const Link = styled.a`
   font-weight: 600;
   font-size: 14px;
   text-decoration: none;
-  border-top-right-radius: 2px;
   color: ${s("text")};
   display: flex;
-  align-items: center;
 
   svg {
     fill: ${s("text")};
   }
 
+  padding: 8px 12px;
   ${breakpoint("tablet")`
-    z-index: ${depths.sidebar + 1};
     background: ${s("sidebarBackground")};
-    position: fixed;
-    bottom: 0;
-    right: 0;
-    padding: 16px;
-
     &:hover {
       background: ${s("sidebarControlHoverBackground")};
     }

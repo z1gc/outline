@@ -1,21 +1,24 @@
 import Router from "koa-router";
 import { NotificationEventType } from "@shared/types";
 import { parseDomain } from "@shared/utils/domains";
+import { parseEmail } from "@shared/utils/email";
+import accountProvisioner from "@server/commands/accountProvisioner";
 import InviteAcceptedEmail from "@server/emails/templates/InviteAcceptedEmail";
-import SigninEmail from "@server/emails/templates/SigninEmail";
 import WelcomeEmail from "@server/emails/templates/WelcomeEmail";
 import env from "@server/env";
-import { AuthorizationError } from "@server/errors";
+import Logger from "@server/logging/Logger";
 import { rateLimiter } from "@server/middlewares/rateLimiter";
 import validate from "@server/middlewares/validate";
-import { User, Team } from "@server/models";
+import { Team } from "@server/models";
 import { APIContext } from "@server/types";
 import { RateLimiterStrategy } from "@server/utils/RateLimiter";
 import { signIn } from "@server/utils/authentication";
-import { getUserForEmailSigninToken } from "@server/utils/jwt";
 import * as T from "./schema";
 
 const router = new Router();
+
+// FIXME: ONLY FOR SELF HOSTED, DON'T USE IN OTHER ENVIRONMENT.
+//        HASN'T FULLY TESTED, MALFUNCTIONAL MAY HAPPENS.
 
 router.post(
   "email",
@@ -39,77 +42,53 @@ router.post(
       });
     }
 
-    if (!team?.emailSigninEnabled) {
-      throw AuthorizationError();
-    }
-
-    const user = await User.scope("withAuthentications").findOne({
-      where: {
-        teamId: team.id,
-        email: email.toLowerCase(),
+    // Example: email="hello@sub.world.local", host="local.outline.dev":
+    const { local } = parseEmail(email);
+    const param = {
+      ip: ctx.ip,
+      // The team is correspoding to a host, therefore 1 host to 1 team.
+      // For self-hosted, we may have only one team.
+      team: {
+        teamId: team?.id,
+        name: env.APP_NAME,
+        // Seems like the `domain` and `subdomain` are just used for the team
+        // lookup, and for `!env.isClousHosted`, these values isn't really
+        // matters, it always fetched the arbitrary team (or the latest).
+        // For the real team, it means for a organization email, and in that
+        // case it's matter.
+        domain: domain.host /* ="local.outline.dev"*/,
+        subdomain: domain.teamSubdomain /* =""*/,
       },
-    });
-
-    if (!user) {
-      ctx.body = {
-        success: true,
-      };
-      return;
-    }
-
-    // If the user matches an email address associated with an SSO
-    // provider then just forward them directly to that sign-in page
-    if (user.authentications.length) {
-      const authenticationProvider =
-        user.authentications[0].authenticationProvider;
-      ctx.body = {
-        redirect: `${team.url}/auth/${authenticationProvider?.name}`,
-      };
-      return;
-    }
-
-    // send email to users email address with a short-lived token
-    await new SigninEmail({
-      to: user.email,
-      token: user.getEmailSigninToken(),
-      teamUrl: team.url,
-      client,
-    }).schedule();
-
-    user.lastSigninEmailSentAt = new Date();
-    await user.save();
-
-    // respond with success regardless of whether an email was sent
-    ctx.body = {
-      success: true,
+      user: {
+        name: local /* ="hello"*/,
+        email /* ="hello@sub.world.local"*/,
+      },
+      authenticationProvider: {
+        name: "email",
+        providerId: domain.host /* ="local.outline.dev"*/,
+      },
+      // This will be ignored by @see server/models/AuthenticationProviders.ts
+      // with oauthClient().
+      authentication: {
+        // If a user is logined with multiple oauth, the providerId is used to
+        // distinguish which provider is really the user logging in.
+        // For us, email can only have one, there it's.
+        // TODO: What does the "scopes" do?
+        providerId: email /* ="hello@sub.world.local"*/,
+        scopes: [],
+      },
     };
-  }
-);
 
-router.get(
-  "email.callback",
-  validate(T.EmailCallbackSchema),
-  async (ctx: APIContext<T.EmailCallbackReq>) => {
-    const { token, client, follow } = ctx.input.query;
-
-    // The link in the email does not include the follow query param, this
-    // is to help prevent anti-virus, and email clients from pre-fetching the link
-    // and spending the token before the user clicks on it. Instead we redirect
-    // to the same URL with the follow query param added from the client side.
-    if (!follow) {
-      return ctx.redirectOnClient(ctx.request.href + "&follow=true");
+    // @see plugins/oidc/server/auth.oidc.ts, passport.use
+    const result = await accountProvisioner(param);
+    if (result.isNewUser) {
+      // TODO: Logger.info? Examples are in server/index.ts.
+      Logger.info("email", JSON.stringify(param));
     }
+    team = result.team;
+    const user = result.user;
 
-    let user!: User;
-
-    try {
-      user = await getUserForEmailSigninToken(token as string);
-    } catch (err) {
-      ctx.redirect(`/?notice=expired-token`);
-      return;
-    }
-
-    if (!user.team.emailSigninEnabled) {
+    if (!team?.emailSigninEnabled) {
       return ctx.redirect("/?notice=auth-error");
     }
 
@@ -121,7 +100,7 @@ router.get(
       await new WelcomeEmail({
         to: user.email,
         role: user.role,
-        teamUrl: user.team.url,
+        teamUrl: team.url,
       }).schedule();
 
       const inviter = await user.$get("invitedBy");
@@ -132,19 +111,24 @@ router.get(
           to: inviter.email,
           inviterId: inviter.id,
           invitedName: user.name,
-          teamUrl: user.team.url,
+          teamUrl: team.url,
         }).schedule();
       }
     }
 
     // set cookies on response and redirect to team subdomain
-    await signIn(ctx, "email", {
-      user,
-      team: user.team,
-      isNewTeam: false,
-      isNewUser: false,
-      client,
-    });
+    await signIn(ctx, "email", { ...result, client });
+
+    // Overwrite the redirection, we make the frontend to do so, instead of the
+    // request itself (signIn will redirect the POST request, rather then set a
+    // new window location).
+    // @see app/scenes/Login/components/AuthenticationProvider.tsx, handleSubmitEmail
+    // @see koajs/koa/lib/response.js, redirect
+    ctx.status = 200;
+    ctx.body = {
+      success: true,
+      redirect: env.URL,
+    };
   }
 );
 
